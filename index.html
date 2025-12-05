@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сканирование QR</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 10px; }
+    #reader { width: 100%; max-width: 400px; margin: auto; }
+    .info { margin-top: 10px; font-size: 16px; }
+    #result { margin-top: 10px; color: green; }
+  </style>
+</head>
+<body>
+  <h2>Сканирование QR участника и позиции</h2>
+  <p>Сначала сканируем QR участника, затем QR позиции</p>
+
+  <div id="reader"></div>
+  <div class="info">Participant ID: <span id="participantId"></span></div>
+  <div class="info">Position: <span id="position"></span></div>
+  <div id="result"></div>
+
+  <script>
+    let scannedData = [];
+    const html5QrCode = new Html5Qrcode("reader");
+
+    // Вставьте сюда ссылку на ваш Web App Google Apps Script
+    const webAppUrl = "https://script.google.com/macros/s/AKfycbyS334exJVUH8_4sFELqhn9gpa1dmI6fqFT97J7Do_2MF6lWTaL-6jjU2F07Fzg7lCf/exec";
+
+    async function startScanner() {
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        if (!devices || devices.length === 0) {
+          alert("Камера не найдена");
+          return;
+        }
+        const cameraId = devices[0].id;
+        await html5QrCode.start(
+          cameraId,
+          { fps: 10, qrbox: 250 },
+          qrCodeMessage => {
+            if (scannedData.length < 2 && !scannedData.includes(qrCodeMessage)) {
+              scannedData.push(qrCodeMessage);
+              updateDisplay();
+              if (scannedData.length === 2) sendData();
+            }
+          },
+          errorMessage => {}
+        );
+      } catch (err) {
+        alert("Ошибка доступа к камере: " + err);
+      }
+    }
+
+    function updateDisplay() {
+      document.getElementById("participantId").innerText = scannedData[0] || "";
+      document.getElementById("position").innerText = scannedData[1] || "";
+    }
+
+    async function sendData() {
+      const participantId = scannedData[0];
+      const position = scannedData[1];
+      try {
+        const response = await fetch(webAppUrl, {
+          method: "POST",
+          body: JSON.stringify({ participantId, position })
+        });
+        const result = await response.json();
+        document.getElementById("result").innerText = result.message;
+        scannedData = [];
+        updateDisplay();
+      } catch (err) {
+        document.getElementById("result").innerText = "Ошибка при отправке: " + err;
+      }
+    }
+
+    startScanner();
+  </script>
+</body>
+</html>
